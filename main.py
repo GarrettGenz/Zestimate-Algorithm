@@ -40,14 +40,9 @@ sample = pd.read_csv('data/sample_submission.csv')
 #print props['regionidneighborhood'].value_counts()
 #print props['regionidzip'].value_counts()
 
-props = reduce_categs(props, 'regionidcity', 2000, 0)
-props = reduce_categs(props, 'regionidneighborhood', 1000, 0)
-props = reduce_categs(props, 'regionidzip', 1000, 0)
-
-for r in props['regionidcity']:
-   if props['regionidcity'].value_counts()[r] < 2000:
-       r = 0
-
+props = reduce_categs(props, 'regionidcity', 5000, 0)
+props = reduce_categs(props, 'regionidneighborhood', 3000, 0)
+props = reduce_categs(props, 'regionidzip', 3000, 0)
 
 print ('Binding to float32...')
 
@@ -101,12 +96,13 @@ df_train = train.merge(props, how='left', on='parcelid')
 x_train = df_train.drop(drop_cols, axis=1)
 y_train = df_train['logerror'].values
 
-print (x_train)
-print (x_train.shape, y_train.shape)
+#print (x_train)
+#print (x_train.shape, y_train.shape)
 
 train_cols = x_train.columns
 
 for c in x_train.dtypes[x_train.dtypes == object].index.values:
+    print c
     if c == 'taxdelinquencyflag':
         x_train[c] = (x_train[c] == 'Y')
     else:
@@ -126,7 +122,7 @@ print ('Building DMatrix...')
 d_train = xgb.DMatrix(x_train, label=y_train)
 d_valid = xgb.DMatrix(x_valid, label=y_valid)
 
-print d_train.feature_types
+#print d_train.feature_types
 
 del x_train, x_valid; gc.collect()
 
@@ -154,11 +150,14 @@ del props; gc.collect()
 
 x_test = df_test[train_cols]
 
+print ('Trouble loop...')
 for c in x_test.dtypes[x_test.dtypes == object].index.values:
+    print c
     if c == 'taxdelinquencyflag':
         x_test[c] = (x_test[c] == 'Y')
     else:
         x_test[c] = (x_test[c] == True)
+print ('End trouble loop...')
 
 del df_test, sample; gc.collect()
 
