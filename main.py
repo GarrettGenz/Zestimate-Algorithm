@@ -21,6 +21,13 @@ def one_hot_encoding(cols, train):
 
     return train
 
+def reduce_categs(df, col, threshold, new_val):
+    value_counts = df[col].value_counts()
+    to_remove = value_counts[value_counts <= threshold].index
+    df[col].replace(to_remove, new_val, inplace=True)
+
+    return df
+
 
 print ('Loading data...')
 
@@ -28,20 +35,60 @@ train = pd.read_csv('data/train_2016_v2.csv')
 props = pd.read_csv('data/properties_2016.csv')
 sample = pd.read_csv('data/sample_submission.csv')
 
+#print props['regionidcity'].value_counts()
+#print props['regionidcounty'].value_counts()
+#print props['regionidneighborhood'].value_counts()
+#print props['regionidzip'].value_counts()
+
+props = reduce_categs(props, 'regionidcity', 2000, 0)
+props = reduce_categs(props, 'regionidneighborhood', 1000, 0)
+props = reduce_categs(props, 'regionidzip', 1000, 0)
+
+for r in props['regionidcity']:
+   if props['regionidcity'].value_counts()[r] < 2000:
+       r = 0
+
+
 print ('Binding to float32...')
 
-drop_cols = ['parcelid', 'logerror', 'transactiondate', 'propertyzoningdesc', 'propertycountylandusecode']
+drop_cols = ['parcelid', 'logerror', 'transactiondate', 'propertyzoningdesc', 'propertycountylandusecode', 'latitude', 'longitude']
 one_hot_encode_cols = ['airconditioningtypeid', 'architecturalstyletypeid', 'buildingclasstypeid',
-                       'heatingorsystemtypeid', 'storytypeid']
+                       'heatingorsystemtypeid', 'storytypeid', 'regionidcity', 'regionidcounty', 'regionidneighborhood', 'regionidzip']
+print props['pooltypeid7'].unique()
+
+props['taxdelinquencyflag'].fillna('N', inplace=True)
+props['airconditioningtypeid'].fillna(5, inplace=True)
+props['architecturalstyletypeid'].fillna(7, inplace=True)
+props['basementsqft'].fillna(0, inplace=True)
+props['bathroomcnt'].fillna(0, inplace=True)
+props['bedroomcnt'].fillna(1, inplace=True)
+props['buildingclasstypeid'].fillna(4, inplace=True)
+props['buildingqualitytypeid'].fillna(7, inplace=True)
+props['decktypeid'].fillna(0, inplace=True)
+props['poolcnt'].fillna(0, inplace=True)
+props['poolsizesum'].fillna(0, inplace=True)
+props['pooltypeid10'].fillna(0, inplace=True)
+props['pooltypeid2'].fillna(0, inplace=True)
+props['pooltypeid7'].fillna(0, inplace=True)
+props['regionidcity'].fillna(0, inplace=True)
+props['regionidcounty'].fillna(0, inplace=True)
+props['regionidneighborhood'].fillna(0, inplace=True)
+props['regionidzip'].fillna(0, inplace=True)
+props['taxdelinquencyyear'].fillna(0, inplace=True)
 
 for c, dtype in zip(props.columns, props.dtypes):
-#    print c, dtype
-#    s = props[c]
-#    print s.head()
-#    print s.describe()
+    if c not in drop_cols:
+        if dtype == np.float32:
+            props[c] = props[c].astype(np.float32)
+    #    print c, dtype
+    #    s = props[c]
+ #       print props[c].describe()
+        if props[c].isnull().values.any():
+            props[c].fillna(props[c].median(), inplace=True)
+ #       print props[c].head()
+    #    print s.describe()
 
-    if dtype == np.float32:
-        props[c] = props[c].astype(np.float32)
+
 
 print ('One hot encode categorical columns...')
 
@@ -60,9 +107,15 @@ print (x_train.shape, y_train.shape)
 train_cols = x_train.columns
 
 for c in x_train.dtypes[x_train.dtypes == object].index.values:
-    x_train[c] = (x_train[c] == True)
+    if c == 'taxdelinquencyflag':
+        x_train[c] = (x_train[c] == 'Y')
+    else:
+        x_train[c] = (x_train[c] == True)
 
 del df_train; gc.collect()
+
+#lasso_x_train = x_train
+#lasso_y_train = y_train
 
 split = 80000
 
@@ -72,6 +125,8 @@ print ('Building DMatrix...')
 
 d_train = xgb.DMatrix(x_train, label=y_train)
 d_valid = xgb.DMatrix(x_valid, label=y_valid)
+
+print d_train.feature_types
 
 del x_train, x_valid; gc.collect()
 
@@ -100,7 +155,10 @@ del props; gc.collect()
 x_test = df_test[train_cols]
 
 for c in x_test.dtypes[x_test.dtypes == object].index.values:
-    x_test[c] = (x_test[c] == True)
+    if c == 'taxdelinquencyflag':
+        x_test[c] = (x_test[c] == 'Y')
+    else:
+        x_test[c] = (x_test[c] == True)
 
 del df_test, sample; gc.collect()
 
@@ -112,7 +170,22 @@ print ('Predicting on test...')
 
 p_test = clf.predict(d_test)
 
-del d_test; gc.collect()
+# print ('Predicting on test with Lasso...')
+#
+# from sklearn.linear_model import Lasso
+#
+# best_alpha = .001
+#
+# regr = Lasso(alpha=best_alpha, max_iter=50000)
+# regr.fit(lasso_x_train, lasso_y_train)
+#
+# p_lasso = regr.predict(d_test)
+#
+# del d_test; gc.collect()
+#
+# ##################################################
+#
+# p_combined = (p_test + p_lasso) / 2
 
 sub = pd.read_csv('data/sample_submission.csv')
 
