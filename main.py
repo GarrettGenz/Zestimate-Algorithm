@@ -161,6 +161,7 @@ print ('End trouble loop...')
 
 del df_test, sample; gc.collect()
 
+print ('Problem')
 d_test = xgb.DMatrix(x_test)
 
 del x_test; gc.collect()
